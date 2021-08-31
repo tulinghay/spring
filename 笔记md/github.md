@@ -66,6 +66,17 @@ git remote add origin https://github.com/tulinghay/demo1.git
 git push -u origin master
 ```
 
+### 问题：
+
+```sh
+# 推送文件太大  fatal: The remote end hung up unexpectedly
+# 修改提交缓存大小
+git config --global http.postBuffer 524288000
+#或 配置git的最低速度和最低速度时间
+git config --global http.lowSpeedLimit 0
+git config --global http.lowSpeedTime 999999
+```
+
 
 
 
