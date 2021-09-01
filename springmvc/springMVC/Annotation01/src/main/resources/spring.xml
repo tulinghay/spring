@@ -13,24 +13,18 @@
 
     <context:component-scan base-package="com.huang.controller"/>
     <mvc:default-servlet-handler/>
-    <!--设置json乱码-->
-    <mvc:annotation-driven>
-        <mvc:message-converters register-defaults="true">
-            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
-                <constructor-arg value="UTF-8"/>
-            </bean>
-            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
-                <property name="objectMapper">
-                    <bean class="org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean">
-                        <property name="failOnEmptyBeans" value="false"/>
-                    </bean>
-                </property>
-            </bean>
-        </mvc:message-converters>
-    </mvc:annotation-driven>
+    <mvc:annotation-driven/>
+
+
     <!--设置视图解析器-->
     <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver" id="internalResourceViewResolver">
         <property name="prefix" value="/WEB-INF/jsp/"/>
         <property name="suffix" value=".jsp"/>
     </bean>
+    <mvc:interceptors>
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <bean class="com.huang.controller.Interception"/>
+        </mvc:interceptor>
+    </mvc:interceptors>
 </beans>
