@@ -305,7 +305,7 @@ resp.setContentType("text/html; charset-UTF-8");
 
     <context:component-scan base-package="com.huang.controller"/>
     <mvc:default-servlet-handler/>
-    <!--设置json乱码-->
+    <!--设置json乱码，目前会报错-->
     <mvc:annotation-driven>
         <mvc:message-converters register-defaults="true">
             <bean class="org.springframework.http.converter.StringHttpMessageConverter">
@@ -545,29 +545,6 @@ java.util.logging.ConsoleHandler.encoding = UTF-8
 
 
 
-问题1：
-
-```shell
-新建一个javaenterprise项目，无法访问webapp下的png图片资源，jpg图片可正常访问。
-```
-
-问题2：
-
-```
-新建一个filter，在web.xml文件中配置了filter后报错如下：
-21-Apr-2021 20:12:07.394 信息 [RMI TCP Connection(3)-127.0.0.1] org.apache.jasper.servlet.TldScanner.scanJars 至少有一个JAR被扫描用于TLD但尚未包含TLD。 为此记录器启用调试日志记录，以获取已扫描但未在其中找到TLD的完整JAR列表。 在扫描期间跳过不需要的JAR可以缩短启动时间和JSP编译时间。
-21-Apr-2021 20:12:07.413 严重 [RMI TCP Connection(3)-127.0.0.1] org.apache.catalina.core.StandardContext.startInternal 一个或多个筛选器启动失败。完整的详细信息将在相应的容器日志文件中找到
-21-Apr-2021 20:12:07.413 严重 [RMI TCP Connection(3)-127.0.0.1] org.apache.catalina.core.StandardContext.startInternal 由于之前的错误，Context[/demo]启动失败
-```
-
-问题3：
-
-```
-ThreadLocal的使用
-```
-
-
-
 filter的FilterChain.doFilter()方法，该方法在实现Filter接口的doFilter方法中调用默认参数filterChain类的doFilter方法使用：
 
 ![image-20210422105233213](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210422105233213.png)
@@ -603,6 +580,12 @@ filter的FilterChain.doFilter()方法，该方法在实现Filter接口的doFilte
 maven包
 
 ```xml
+<!--@stereotype.Controller-->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>5.3.5</version>
+</dependency>
 <!--自动getter setter-->
 <dependency>
     <groupId>org.projectlombok</groupId>
@@ -640,6 +623,7 @@ maven包
     <artifactId>jsp-api</artifactId>
     <version>2.2</version>
 </dependency>
+<!--web.xml中的DispatcherServlet-->
 <dependency>
     <groupId>javax.servlet</groupId>
     <artifactId>servlet-api</artifactId>
@@ -662,7 +646,7 @@ maven包
     <artifactId>mybatis-spring</artifactId>
     <version>2.0.6</version>
 </dependency>
-<!--spring-->
+<!--spring\spring.xml中的mvc配置-->
 <dependency>
     <groupId>org.springframework</groupId>
     <artifactId>spring-webmvc</artifactId>
@@ -674,29 +658,82 @@ maven包
     <version>5.3.5</version>
 </dependency>
 
+<!--上传文件-->
+
 ```
 
-### 固定配置
+### Spring架构搭建
 
 spring.xml
 
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/mvc
+       https://www.springframework.org/schema/mvc/spring-mvc.xsd">
+    <!--扫描位置，让其内的注解生效，，由IOC容器管理-->
     <context:component-scan base-package="com.huang.controller"/>
-    <mvc:default-servlet-handler/>
+    <!--使用注解加载映射器和解析器，省略配置步骤-->
     <mvc:annotation-driven/>
+    <!--让springmvc不使用视图解析器解析静态资源-->
+    <mvc:default-servlet-handler/>
+	<!--配置视图解析器-->
     <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver" id="internalResourceViewResolver">
-        <property name="prefix" value="/WEB-INF/jsp/"/>
-        <property name="suffix" value=".jsp"/>
+        <property name="prefix" value="/WEB-INF/jsp/"></property>
+        <property name="suffix" value=".jsp"></property>
     </bean>
-
-
+    
+    <!--文件上传配置-->
+    <bean class="org.springframework.web.multipart.commons.CommonsMultipartResolver" id="multipartResolver">
+        <!--请求的编码格式必须和jsp的pageencoding属性一直，以便正确读取表单的内容，默认为IOS-8859-1-->
+        <property name="defaultEncoding" value="utf-8"/>
+        <!--文件大小上线，单位字节，10485760=10m-->
+        <property name="maxUploadSize" value="10485760"/>
+        <property name="maxInMemorySize" value="40960"/>
+    </bean>
+    <!--设置json乱码，目前导入这个配置会报错-->
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="true">
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <constructor-arg value="UTF-8"/>
+            </bean>
+            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+                <property name="objectMapper">
+                    <bean class="org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean">
+                        <property name="failOnEmptyBeans" value="false"/>
+                    </bean>
+                </property>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+    <!--设置拦截器-->
+    <mvc:interceptors>
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <bean class="com.huang.controller.Interception"/>
+        </mvc:interceptor>
+    </mvc:interceptors>
+</beans>
 ```
 
 web.xml
 
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+    <!--配置DispatcherServlet，自动分发servlet-->
     <servlet>
-        <servlet-name>springmvc</servlet-name>
+        <servlet-name>mvc</servlet-name>
         <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
         <init-param>
             <param-name>contextConfigLocation</param-name>
@@ -705,10 +742,10 @@ web.xml
         <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
-        <servlet-name>springmvc</servlet-name>
+        <servlet-name>mvc</servlet-name>
         <url-pattern>/</url-pattern>
     </servlet-mapping>
-	<!--spring配置乱码-->
+    <!--编码设置-->
     <filter>
         <filter-name>encoding</filter-name>
         <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
@@ -721,9 +758,11 @@ web.xml
         <filter-name>encoding</filter-name>
         <url-pattern>/</url-pattern>
     </filter-mapping>
+</web-app>
+
 ```
 
-### 注释
+### 注解
 
 方法注释
 
@@ -741,6 +780,13 @@ web.xml
 @RestController		配置表示该类的所有返回都属于字符串，不进行视图解析，只传递json可以用这个
 ```
 
+- @Autowired：自动装配，通过类型，名字
+  - 如果@Autowired不能唯一自动装配，则需要通过@Qualifier(value="xxx")来进行指定
+- @Nullable ：参数标记了这个注解啧说明字段可为null
+- @Resource：自动装配，通过名字类型
+
+
+
 ### FastJson
 
 导包
@@ -753,11 +799,70 @@ web.xml
 </dependency>
 ```
 
-Mybatis
+### 拦截器 Interception
+
+**1. 类实现接口HandlerInterceptor**
+
+```java
+public class Interception implements HandlerInterceptor {
+	
+    //返回false表示拦截
+    //True表示不拦截
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        return false;
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+
+    }
+}
+```
+
+**2. spring.xml文件中添加**
+
+```xml
+    <mvc:interceptors>
+        <mvc:interceptor>
+            <!--/**表示根目录下的所有路径（包括子路径）都拦截-->
+            <mvc:mapping path="/**"/>
+            <bean class="com.huang.controller.Interception"/>
+        </mvc:interceptor>
+    </mvc:interceptors>
+```
 
 
 
+### 问题
 
+
+
+问题1：
+
+```shell
+新建一个javaenterprise项目，无法访问webapp下的png图片资源，jpg图片可正常访问。
+```
+
+问题2：
+
+```
+新建一个filter，在web.xml文件中配置了filter后报错如下：
+21-Apr-2021 20:12:07.394 信息 [RMI TCP Connection(3)-127.0.0.1] org.apache.jasper.servlet.TldScanner.scanJars 至少有一个JAR被扫描用于TLD但尚未包含TLD。 为此记录器启用调试日志记录，以获取已扫描但未在其中找到TLD的完整JAR列表。 在扫描期间跳过不需要的JAR可以缩短启动时间和JSP编译时间。
+21-Apr-2021 20:12:07.413 严重 [RMI TCP Connection(3)-127.0.0.1] org.apache.catalina.core.StandardContext.startInternal 一个或多个筛选器启动失败。完整的详细信息将在相应的容器日志文件中找到
+21-Apr-2021 20:12:07.413 严重 [RMI TCP Connection(3)-127.0.0.1] org.apache.catalina.core.StandardContext.startInternal 由于之前的错误，Context[/demo]启动失败
+```
+
+问题3：
+
+```
+ThreadLocal的使用
+```
 
 
 
