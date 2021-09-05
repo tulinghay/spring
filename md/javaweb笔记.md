@@ -864,15 +864,133 @@ public class Interception implements HandlerInterceptor {
 ThreadLocal的使用
 ```
 
+## SpringBoot
 
+springboot的自动装配配置都在spring-boot-autoconfigure-2.2.0.RELEASEjar包下
 
+![image-20210902113307259](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210902113307259.png)
 
+### pom.xml
 
+pom.xml文件设置了starter-web后才作为一个web项目，通过springinitialize新建项目，未勾选springweb时添加如下依赖
 
+```xml
+<!--starter-web后才作为一个web项目-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<!--thymeleaf-->
+<dependency>
+    <groupId>org.thymeleaf</groupId>
+    <artifactId>thymeleaf-spring5</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.thymeleaf.extras</groupId>
+    <artifactId>thymeleaf-extras-java8time</artifactId>
+</dependency>
+```
 
+在pom配置了一个父工程的依赖，springboot几乎提前导入需要的jar包
 
+### application.properties
 
+```properties
+#设置端口
+server.port=8081
+```
 
+**通过注解将配置在yaml文件中的值赋值给类，以及jsr303校验属性验证**
+
+1. yaml文件中配置person类的属性,yaml文件中可以使用EL表达式
+
+```yaml
+person:
+	name: huang
+	age: 23
+	birth: 2019/12/12
+	maps:{key1: val1,key2: val2}
+	email: huang@163.com
+```
+
+2. 创建类时，加上注解
+
+```java
+@Component//注册bean，设置为容器中的组件，才能使用ConfigurationProperties功能
+@ConfigurationProperties(prefix="person")//赋值yaml文件中的person对象
+@Validated//jsr303校验
+public class Person{
+    private String name;
+    private Integer age;
+    private Date birth;
+    private Map<String,Object> maps;
+    @Email(message="自定义错误提示")//设置校验，赋值不符合邮箱格式会报错
+    private String email;
+    Person(){}
+    Person(String name,Integer age,Date birth,Map<String,Object> maps,String email){
+        this.name=name;
+        this.age=age;
+        this.birth=birth;
+        this.maps=maps;
+        this.email=email;
+    }
+}
+```
+
+3. 使用
+
+```java
+@Autowired
+Person person= new Person()
+```
+
+**使用properties配置文件获取值**
+
+1. 配置文件huang.properties
+
+```properties
+name=huang
+```
+
+2. 配置类
+
+```java
+@configurationProperties("classpath:huang.properties")
+public class Person{
+    @Value("name")
+    private String name;
+}
+```
+
+获取一个值时，使用properties；多个使用yaml
+
+### yaml文件可放置的位置
+
+file:./config/（工程根目录下创建config下）  file:./(工程根目录下)     classpath:./config/   classpath:./（类路径下，一般是resources下）
+
+优先级也如上顺序，第一个最高，如有重复变量，则取优先级高的
+
+yaml/yml实现多环境配置：https://www.cnblogs.com/tudou1179006580/p/14875313.html
+
+### thymeleaf使用
+
+1. pom.xml文件中导入依赖
+
+   ```xml
+   <!--thymeleaf-->
+   <dependency>
+       <groupId>org.thymeleaf</groupId>
+       <artifactId>thymeleaf-spring5</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.thymeleaf.extras</groupId>
+       <artifactId>thymeleaf-extras-java8time</artifactId>
+   </dependency>
+   ```
+
+2. html文件中引入`<html lang="en" xmlns:th="http://thymeleaf.org">`
+
+3. 
 
 
 
