@@ -1,3 +1,15 @@
+### 反射
+
+```java
+//通过反射更新结果，将对象名为columnName的属性更新值为columnValue
+//Order为需要赋值的对象
+Field field=Order.class.getDeclaredField(columnName);
+field.setAccessible(true);
+field.set(order,columnValue);
+```
+
+
+
 ```java
 //指定response的content-type为text/plain，也可以指定为json等
 @Produces("text/plain")
@@ -531,9 +543,7 @@ java.util.logging.ConsoleHandler.encoding = UTF-8
 
 后重启服务器执行即可
 
-3.  创建工程后默认生成了工程目录名称，修改了tomcat配置中的url后报错无法访问![image-20210421170327089](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210421170327089.png)需要同步修改Deloyment下的内容。
-
-![image-20210421170239729](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210421170239729.png)
+3.  创建工程后默认生成了工程目录名称，修改了tomcat配置中的url后报错无法访问
 
 3. 由于tomcat内部config默认设置，导致工程打开默认识别webapp下面的index.jsp页面，如果需要修改的话，则在web.xml中增加下面代码
 
@@ -551,7 +561,7 @@ filter的FilterChain.doFilter()方法，该方法在实现Filter接口的doFilte
 
 ### pom文件配置
 
-过滤资源
+过滤资源，资源过滤
 
 ```xml
 <!--静态资源导出问题-->    
@@ -839,6 +849,153 @@ public class Interception implements HandlerInterceptor {
 
 
 
+### 文件上传与下载
+
+1. pom.xml
+
+```xml
+<dependency>
+    <groupId>commons-fileupload</groupId>
+    <artifactId>commons-fileupload</artifactId>
+    <version>1.3.2</version>
+</dependency>
+<dependency>
+    <groupId>commons-io</groupId>
+    <artifactId>commons-io</artifactId>
+    <version>2.6</version>
+</dependency>
+```
+
+2. 配置bean
+
+```xml
+<!--文件上传配置-->
+<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+    <!--设置默认编码格式-->
+    <property name="defaultEncoding" value="UTF-8"/>
+    <!--设置单个文件最大上传大小，以字节位单位-->
+    <property name="maxUploadSizePerFile" value="5242880"/>
+    <!--设置所有文件最大上传大小，以字节位单位-->
+    <property name="maxUploadSize" value="5242880"/>
+</bean>
+```
+
+3. java代码实现，用的是commons-io依赖
+
+```java
+package com.example.springdata.controller;
+
+import com.alibaba.fastjson.JSONObject;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.IOException;
+import java.util.UUID;
+
+/*
+需添加依赖
+<dependency>
+    <groupId>commons-io</groupId>
+    <artifactId>commons-io</artifactId>
+    <version>2.6</version>
+</dependency>
+
+ */
+
+/**
+ * 上传文件，并给出下载链接
+ */
+@Controller
+public class UploadFile {
+
+    //文件存储在根目录下的files目录下
+    private static String baseDir = "files/";
+
+    /**
+     * 文件上传
+     * @param inputFile
+     * @param
+     * @param httpServletRequest
+     * @return
+     */
+    @PostMapping("/upload")
+    @ResponseBody
+    public JSONObject uploadcert(@RequestParam("file") MultipartFile inputFile, HttpServletRequest httpServletRequest) {
+        //文件的存储目录--
+        String destPath="E:\\personLearning\\javaweb\\project\\springdata\\temp\\";
+        JSONObject jsonObject = new JSONObject();
+        //生成唯一的UUID与源文件拼接生成的新文件名
+        String name = UUID.randomUUID().toString() + "-" + inputFile.getOriginalFilename();
+
+        try {
+            //方法一
+            //传入目标存储文件，这里的存储路径是相对于根目录下
+            FileUtils.copyToFile(inputFile.getInputStream(), new File(baseDir + name));
+            //方法二
+            //此方法在给定了目标存储文件的绝对路径的情况下使用，由于版本问题transferTo会添加一个temp临时路径，报错文件 不存在
+            //String fileName = inputFile.getOriginalFilename();
+            //构建目标文件
+            //File dest = new File(destPath + fileName);
+            //如果文件夹不在则创建文件夹
+            //if (!dest.getParentFile().exists()) {
+            //    dest.getParentFile().mkdirs();
+            //}
+            //inputFile.transferTo(dest);
+            //======================================================================================
+        } catch (IOException e) {
+            e.printStackTrace();
+            jsonObject.put("Msg", "上传失败");
+            jsonObject.put("code", 202);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        }
+        // 生成下载链接
+        String url=httpServletRequest.getScheme()+"://"+httpServletRequest.getServerName()+":"+httpServletRequest.getServerPort()+"/";
+
+        name=url.substring(0, url.indexOf("/",9)+1)+"download/"+name;
+        System.out.println(name);
+
+        if (inputFile.isEmpty()) {
+            jsonObject.put("Msg", "上传失败");
+            jsonObject.put("code", 202);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        }
+        jsonObject.put("Msg", "上传成功");
+        jsonObject.put("code", 200);
+        jsonObject.put("data", "");
+        jsonObject.put("total","");
+        return jsonObject;
+    }
+
+    /**
+     * 下载上传的文件
+     * @param response
+     * @param name 传入需要下载的文件名
+     * @throws IOException
+     */
+    @GetMapping("/download/{name}")
+    public void download(HttpServletResponse response, @PathVariable String name) throws IOException {
+        File file = new File(baseDir + name);
+        IOUtils.copy(FileUtils.openInputStream(file), response.getOutputStream());
+    }
+}
+
+```
+
+
+
+
+
+
+
 ### 问题
 
 
@@ -889,6 +1046,18 @@ pom.xml文件设置了starter-web后才作为一个web项目，通过springiniti
     <groupId>org.thymeleaf.extras</groupId>
     <artifactId>thymeleaf-extras-java8time</artifactId>
 </dependency>
+<!--druid数据库连接诶-->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.22</version>
+</dependency>
+<!--log4j日志-->
+<dependency>
+    <groupId>log4j</groupId>
+    <artifactId>log4j</artifactId>
+    <version>1.2.12</version>
+</dependency>
 ```
 
 在pom配置了一个父工程的依赖，springboot几乎提前导入需要的jar包
@@ -898,6 +1067,42 @@ pom.xml文件设置了starter-web后才作为一个web项目，通过springiniti
 ```properties
 #设置端口
 server.port=8081
+#设置访问目录,localhost:8080/huang
+server.servlet.context-path=/huang
+#关闭thymeleaf缓存引擎
+spring.thymeleaf.cache=false
+#设置日期格式为yyyy-MM-dd，默认为yyyy/MM/dd
+spring.mvc.date-format=yyyy-MM-dd
+
+#数据库连接设置
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.url=jdbc:mysql://localhost:3306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&&useSSL=false&&autoReconnect=true&failOverReadOnly=false 
+spring.datasource.username=root
+spring.datasource.password=qwe
+#数据库源设置，这里设置为DruidDataSource
+spring.datasource.type=com.alibaba.druid.pool.DruidDataSource
+#连接池的配置信息
+spring.datasource.initialSize=5
+spring.datasource.minIdle=5
+spring.datasource.maxActive=20
+# 配置获取连接等待超时的时间
+spring.datasource.maxWait=60000
+# 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+spring.datasource.timeBetweenEvictionRunsMillis=60000
+# 配置一个连接在池中最小生存的时间，单位是毫秒
+spring.datasource.minEvictableIdleTimeMillis=300000
+spring.datasource.validationQuery=SELECT 1 FROM DUAL
+spring.datasource.testWhileIdle=true
+spring.datasource.testOnBorrow=false
+spring.datasource.testOnReturn=false
+# 打开PSCache，并且指定每个连接上PSCache的大小
+spring.datasource.poolPreparedStatements=true
+spring.datasource.maxPoolPreparedStatementPerConnectionSize=20
+# 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+spring.datasource.filters=stat,wall,log4j
+# 通过connectProperties属性来打开mergeSql功能；慢SQL记录
+spring.datasource.connectionProperties=druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000
+
 ```
 
 **通过注解将配置在yaml文件中的值赋值给类，以及jsr303校验属性验证**
@@ -911,6 +1116,7 @@ person:
 	birth: 2019/12/12
 	maps:{key1: val1,key2: val2}
 	email: huang@163.com
+
 ```
 
 2. 创建类时，加上注解
@@ -990,7 +1196,841 @@ yaml/yml实现多环境配置：https://www.cnblogs.com/tudou1179006580/p/148753
 
 2. html文件中引入`<html lang="en" xmlns:th="http://thymeleaf.org">`
 
-3. 
+3. 用法
+
+   ```java
+   变量表达式：${...}
+   选择表达式：*{...}
+   消息表达式：#{...}
+   链接表达式：@{...}
+   片段表达式：~{...}
+   ```
+
+### 消息国际化配置
+
+resources文件夹下创建i18n文件夹，在其下创建login.properties、login_zh_CN.properties、login_en_US.properties文件，通过可视化创建不同语言的属性后，在配置文件中添加文件位置`spring.messages.basename=i18n.login` ;最后在html页面中添加`th:text="#{login.tip}";
+
+详情见：https://www.bilibili.com/video/BV1PE411i7CV?p=22&spm_id_from=pageDriver
+
+1. 系统语言默认是根据浏览器请求头的Accept-language的信息，生成对应的LocaleResolver，返回给系统执行；可以自定义一个LocaleResoler来根据请求中的参数来实现语言切换。请求可以设置为：`<a class="btn btn-sm" th:href="@{/index.html(lang='zh_CN')}">中文</a>`
+
+```java
+package com.example.springboot.config;
+
+import org.springframework.web.servlet.LocaleResolver;
+import org.thymeleaf.util.StringUtils;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.util.Enumeration;
+import java.util.Locale;
+
+public class IndexLocaleResolver implements LocaleResolver {
+    @Override
+    public Locale resolveLocale(HttpServletRequest httpServletRequest) {
+        String lang= (String) httpServletRequest.getParameter("lang");
+        //先获取默认的localeResolver
+        Locale locale=Locale.getDefault();
+        //如果链接里有参数则生成locale
+        System.out.println("==========="+lang);
+        if(!StringUtils.isEmpty(lang)){
+            String[] split=lang.split("_");
+            locale=new Locale(split[0],split[1]);
+        }
+        return locale;
+    }
+
+    @Override
+    public void setLocale(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Locale locale) {
+    }
+}
+```
+
+2. 在config中配置bean
+
+```java
+package com.example.springboot.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.LocaleResolver;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class IndexConfig implements WebMvcConfigurer {
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/").setViewName("index");
+        registry.addViewController("/index.html").setViewName("index");
+    }
+
+    //自定义的国际化bean加入
+    @Bean
+    public LocaleResolver localeResolver(){
+        return new IndexLocaleResolver();
+    }
+}
+```
+
+### 404 500配置
+
+在resources目录下创建error文件夹，然后创建404.html、505.html即可
+
+### 前端框架网站
+
+bootstrap、layui、semantic-ui
+
+### 文件上传
+
+1. application.properties文件配置
+
+```properties
+#设置单个文件大小
+spring.servlet.multipart.max-file-size= 50MB
+#设置单次请求文件的总大小
+spring.servlet.multipart.max-request-size= 50MB
+```
+
+2. controller配置
+
+```java
+    private static String baseDir = "files/";
+
+    /**
+     * 文件上传
+     * @param file
+     * @param certno
+     * @param httpServletRequest
+     * @return
+     */
+    @UserLoginToken
+    @PostMapping("/uploadgrant")
+    @ResponseBody
+    public Object uploadcert(@RequestParam("file") MultipartFile file, @RequestParam String applyseq, HttpServletRequest httpServletRequest) {
+
+        JSONObject jsonObject = new JSONObject();
+        //生成唯一的UUID与源文件拼接
+        String name = UUID.randomUUID().toString() + "-" + file.getOriginalFilename();
+        File outFile = new File(baseDir + name);
+        try {
+            FileUtils.copyToFile(file.getInputStream(), outFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+            jsonObject.put("Msg", "上传失败");
+            jsonObject.put("code", 202);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        }
+        // String url=httpServletRequest.getHeader("REFERER");
+
+        String url=httpServletRequest.getScheme()+"://"+httpServletRequest.getServerName()+":"+httpServletRequest.getServerPort()+"/";
+        System.out.println("name:"+name);
+        System.out.println("url:"+url);
+
+        name=url.substring(0, url.indexOf("/",9)+1)+"download/"+name;
+        String username= TokenUtil.getTokenUsername();
+
+        if (file.isEmpty()) {
+            jsonObject.put("Msg", "上传失败");
+            jsonObject.put("code", 202);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        }
+        //try {
+        //    System.out.println("文件大小为："+file.getSize()+":"+file.getBytes());
+        //} catch (IOException e) {
+        //    e.printStackTrace();
+        //}
+        //org.apache.tomcat.util.http.fileupload.impl.FileSizeLimitExceededException: The field file exceeds its maximum permitted size of 1048576 bytes
+        System.out.println("开始上传");
+
+        String fileName = file.getOriginalFilename();
+        String filePath = "temp";
+
+        File dest = new File(new File(filePath).getAbsolutePath() + "/" + fileName);
+        try {
+
+            if (!dest.getParentFile().exists()) {
+                dest.getParentFile().mkdirs();
+            }
+
+            file.transferTo(dest);
+
+            LOGGER.info("连接数据库:");
+
+            DBConnection db = new DBConnection();
+
+            String sql;
+            sql ="update patentgrant set remark='" +name+"' where ifnull(applyseq,'null')='"+applyseq+"'";
+
+            LOGGER.info("sql:"+sql);
+            db.update(sql);
+
+            jsonObject.put("Msg", "上传成功");
+            jsonObject.put("code", 200);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        } catch (IOException e) {
+            LOGGER.error(e.toString(), e);
+        }
+        jsonObject.put("Msg", "上传失败");
+        jsonObject.put("code", 202);
+        jsonObject.put("data", "");
+        jsonObject.put("total","");
+        return jsonObject;
+    }
+
+```
+
+### JDBC连接数据库获取数据
+
+```java
+package com.example.springdata.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+public class JDBController {
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    /**
+     * 查询所有数据
+     * 自动查询表中所有字段
+     * jdbctemplate自动有事物管理
+     * @return
+     */
+    @GetMapping("/list")
+    public List<Map<String ,Object>> userList(){
+        String sql="select * from student";
+        List<Map<String ,Object>> listmap=jdbcTemplate.queryForList(sql);
+        return listmap;
+    }
+
+    @PostMapping("/add")
+    public String add(){
+        String sql="insert into test.student values(1,'23',12)";
+        jdbcTemplate.update(sql);
+        return "ok";
+    }
+
+    /**
+     * 原生jdbc实现的另一种方式
+     * @return
+     */
+    @PostMapping("/update")
+    public String update(){
+        String sql="update test.student set name=? where id=1";
+        Object[] objects= new Object[2];
+        objects[0]="huang";
+        objects[1]=12;
+        jdbcTemplate.update(sql,objects);
+        return "ok";
+    }
+
+    /**
+     * 原生jdbc的另一种实现方式
+     * @param id
+     * @return
+     */
+    @PostMapping("/update/{id}")
+    public String delete(@PathVariable("id") int id){
+        String sql="delete from test.student where id = ?";
+        jdbcTemplate.update(sql,id);
+        return "ok";
+    }
+}
+```
+
+### Druid
+
+1. 添加druid配置
+
+```properties
+#连接池的配置信息
+spring.datasource.initialSize=5
+spring.datasource.minIdle=5
+spring.datasource.maxActive=20
+# 配置获取连接等待超时的时间
+spring.datasource.maxWait=60000
+# 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+spring.datasource.timeBetweenEvictionRunsMillis=60000
+# 配置一个连接在池中最小生存的时间，单位是毫秒
+spring.datasource.minEvictableIdleTimeMillis=300000
+spring.datasource.validationQuery=SELECT 1 FROM DUAL
+spring.datasource.testWhileIdle=true
+spring.datasource.testOnBorrow=false
+spring.datasource.testOnReturn=false
+# 打开PSCache，并且指定每个连接上PSCache的大小
+spring.datasource.poolPreparedStatements=true
+spring.datasource.maxPoolPreparedStatementPerConnectionSize=20
+# 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+spring.datasource.filters=stat,wall,log4j
+# 通过connectProperties属性来打开mergeSql功能；慢SQL记录
+spring.datasource.connectionProperties=druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000
+#是否启用StatFilter默认值true
+spring.datasource.druid.web-stat-filter.enabled=true
+#多个白名单IP以逗号分隔
+druid.monitor.allow=127.0.0.1
+#多个黑名单IP以逗号分隔
+druid.monitor.deny=0.0.0.0
+#druid监控管理界面登录帐号
+druid.monitor.loginUsername=admin
+#druid监控管理界面登录密码
+druid.monitor.loginPassword=qwe
+#是否开启重置功能
+druid.monitor.resetEnable=false
+```
+
+2. 设置java代码，后可以通过访问localhost:8080进行访问，通过configuration配置filter
+
+```java
+package com.example.springdata;
+
+import com.alibaba.druid.pool.DruidDataSource;
+import com.alibaba.druid.support.http.StatViewServlet;
+import com.alibaba.druid.support.http.WebStatFilter;
+import org.omg.CosNaming.BindingIterator;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import javax.sql.DataSource;
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class DruidConfig {
+    @ConfigurationProperties(prefix = "spring.datasource")
+    @Bean
+    public DataSource druidDataSource(){
+        return new DruidDataSource();
+    }
+    //后台监控
+    //由于springboot内置了servlet容器，所以没有web.xml，使用ServletRegistrationBean来替代
+    @Bean
+    public ServletRegistrationBean statViewServlet(){
+        ServletRegistrationBean<StatViewServlet> bean=new ServletRegistrationBean<>(new StatViewServlet(),"/druid/*");
+
+        return bean;
+    }
+    //配置过滤器
+    public FilterRegistrationBean webStatFilter(){
+        FilterRegistrationBean bean=new FilterRegistrationBean();
+        bean.setFilter(new WebStatFilter());;
+
+        //设置过滤的请求
+        Map<String,String> initParameters=new HashMap<>();
+        initParameters.put("exclusions","*.js,*.css,/druid/*");
+        bean.setInitParameters(initParameters);
+
+        return bean;
+    }
+}
+
+```
+
+### spring整合mybatis
+
+1. pom.xml配置
+
+```xml
+<dependency>
+    <groupId>org.mybatis.spring.boot</groupId>
+    <artifactId>mybatis-spring-boot-starter</artifactId>
+    <version>1.3.2</version>
+</dependency>
+```
+
+2. application.properties配置
+
+```properties
+#类型包
+mybatis.type-aliases-package=com.kuang.pojo
+#mapper.xml包
+mybatis.mapper-locations=classpath:mybatis/mapper*.xml
+```
+
+3. 分别创建对应的user.java，userMapper.java（接口），userMapper.xml
+
+实体类
+
+```java
+package com.kuang.pojo;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Department {
+
+    private Integer id;
+    private String departmentName;
+
+}
+```
+
+Mapper.java接口类
+
+```java
+//@Mapper : 表示本类是一个 MyBatis 的 Mapper
+@Mapper
+@Repository
+public interface DepartmentMapper {
+
+    // 获取所有部门信息
+    List<Department> getDepartments();
+
+    // 通过id获得部门
+    Department getDepartment(Integer id);
+
+}
+```
+
+mapper.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kuang.mapper.DepartmentMapper">
+
+    <select id="getDepartments" resultType="Department">
+       select * from department;
+    </select>
+
+    <select id="getDepartment" resultType="Department" parameterType="int">
+       select * from department where id = #{id};
+    </select>
+
+</mapper>
+```
+
+Controller
+
+```java
+@RestController
+public class DepartmentController {
+    
+    @Autowired
+    DepartmentMapper departmentMapper;
+    
+    // 查询全部部门
+    @GetMapping("/getDepartments")
+    public List<Department> getDepartments(){
+        return departmentMapper.getDepartments();
+    }
+
+    // 查询全部部门
+    @GetMapping("/getDepartment/{id}")
+    public Department getDepartment(@PathVariable("id") Integer id){
+        return departmentMapper.getDepartment(id);
+    }
+    
+}
+```
+
+### springSecurity
+
+1. pom.xml配置
+
+```xml
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<!--security整合thymeleaf-->
+<dependency>
+    <groupId>org.thymeleaf.extras</groupId>
+    <artifactId>thymeleaf-extras-springsecurity4</artifactId>
+    <version>3.0.4.RELEASE</version>
+</dependency>
+```
+
+2. html中添加命名空间
+
+```html
+xmlns="http://www.thymeleaf.org/thymeleaf-extras-springsecurity4"
+```
+
+### Shiro
+
+1. pom.xml依赖
+
+```xml
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-spring</artifactId>
+    <version>1.7.1</version>
+</dependency>
+
+<!--shiro整合thymeleaf-->
+<dependency>
+    <groupId>com.github.theborakompanioni</groupId>
+    <artifactId>thymeleaf-extras-shiro</artifactId>
+    <version>2.0.0</version>
+</dependency>
+```
+
+
+
+### Swagger
+
+1. pom.xml导包
+
+```xml
+<dependency>
+    <groupId>io.springfox</groupId>
+    <artifactId>springfox-swagger2</artifactId>
+    <version>3.0.0</version>
+</dependency>
+<dependency>
+    <groupId>io.springfox</groupId>
+    <artifactId>springfox-swagger-ui</artifactId>
+    <version>3.0.0</version>
+</dependency>
+```
+
+2. 开启swagger
+
+```java
+package cn.luischen.config;
+
+import org.springframework.context.annotation.Configuration;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
+
+@Configuration
+@EnableSwagger2
+public class SwaggerConfig {
+    
+}
+```
+
+
+
+### 异步
+
+1. 给需要异步执行的方法加上@Async
+2. 给SpringbootApplication主类开启异步方法@EnableAsync
+
+
+
+### 邮件
+
+1. pom.xml
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-mail</artifactId>
+</dependency>
+```
+
+application.properties
+
+```properties
+spring.mail.username=1443652986@qq.com
+#从qq邮箱开启pop3/smtp服务获取password
+spring.mail.password=xxxxxxxxx
+spring.mail.host=smtp.qq.com
+#腾讯邮箱需要 开启加密验证
+spring.mail.properties.mail.smtp.ssl.enable=true
+```
+
+
+
+```java
+@Autowired
+JavaMailSenderImpl mailSender;
+//简单的邮件 
+void contextLoads(){
+    SimpleMailMessage mailMessage=new SimpleMailMessage();
+   	mailMessage.setSubject("主题");
+    mailMessage.setText("内容");
+    mailMessage.setTo("接收人");
+    mailMessage.setFrom("发送人");
+    mailSender.send(mailMessage);
+}
+//复杂的邮件
+void contextLoads2() throws MessagingException{
+    MimeMessage mimeMessage = mailSender.createMimeMessage();
+    //组装
+    MimeMessageHelper helper=new MimeMessageHelper(mimeMessage,true);
+    //正文
+    helper.setSubject("主题");
+    //第二个参数是否开启html模式
+    helper.setText("内容",ture);
+    //附件
+    helper.addAttachment("1.jpg",new File("文件路径"));
+    helper.addAttachment("2.jpg",new File("文件路径"));
+    
+    helper.setTo("1443652986@qq.com");
+    helper.setFrom("1443652986@qq.com");
+    mailSender.send(mimeMessage);
+}
+```
+
+
+
+### 定时任务
+
+1. //TaskScheduler
+   //TaskExecutor
+   @EnableScheduling//在SpringbootApplication主类中开启定时功能的注解
+   @Scheduled 	//什么时候执行
+
+```java
+package com.example.springdata.service;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ScheduledService {
+    //注解中写入cron表达式
+    @Scheduled(cron = "")
+    public void hello(){
+        System.out.println("hello ,本次执行了");
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 问题
+
+1. 新建springboot项目后，切换maven仓库直接报错，pom文件以及springbootapplication注解也报错
+
+   `等待程序加载完成即可`
+
+2. springboot中使用@Configuration来自定义视图解析器，如下，访问地址localhost:8080/
+
+   ```java
+   package com.example.springboot.config;
+   
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
+   import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+   
+   @Configuration
+   public class IndexConfig implements WebMvcConfigurer {
+       @Override
+       public void addViewControllers(ViewControllerRegistry registry) {
+           registry.addViewController("/").setViewName("index");
+           registry.addViewController("/index.html").setViewName("index");
+       }
+   }
+   ```
+
+   需要导入thymeleaf依赖,不然会报错
+
+   ```XML
+   <dependency>
+       <groupId>org.thymeleaf</groupId>
+       <artifactId>thymeleaf-spring5</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.thymeleaf.extras</groupId>
+       <artifactId>thymeleaf-extras-java8time</artifactId>
+   </dependency>
+   ```
+
+3. ```tex
+   ***************************
+   APPLICATION FAILED TO START
+   ***************************
+   
+   Description:
+   
+   Failed to configure a DataSource: 'url' attribute is not specified and no embedded datasource could be configured.
+   
+   Reason: Failed to determine a suitable driver class
+   
+   
+   Action:
+   
+   Consider the following:
+   	If you want an embedded database (H2, HSQL or Derby), please put it on the classpath.
+   	If you have database settings to be loaded from a particular profile you may need to activate it (no profiles are currently active).
+   ```
+
+   设置@SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})，避免自动配置数据库
+
+4. springboot访问接口全无反应，日志中有：Using generated security password: 3d2b89bf-8a18-4a64-b303-61ede15c53fa；
+
+   ```xml
+   原因是添加了security
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-security</artifactId>
+   </dependency>
+   ```
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
