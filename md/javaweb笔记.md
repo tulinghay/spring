@@ -1,3 +1,55 @@
+## 泛型
+
+反射类
+
+基本数据类型不可做为泛型传入
+
+类型通配符、以及其上下限
+
+类型擦除、无限制类型擦出、有限制类型擦出、桥接方法（保持接口和类的实现关系）
+
+可以声明带泛型的数组引用，但是不能直接创建带泛型的数组对象
+
+可以通过java.lang.reflect.Array的newInstance(Class<T>, int)创建T[]数组
+
+## 反射
+
+```java
+Class cls=Class.forName("Dog");
+//创建类实例
+Object object = cls.newInstance();
+//获取方法对象
+Method method=cls.getMethod("setName")
+method.invoke(object);
+//getField不能得到私有变量
+Field name=cls.getField("name");
+System.out.println(name.get(object));
+//无参构造器
+Contructor contructor=cls.getConstructor();
+//有参构造器
+Contructor contructor=cls.getConstructor(String.class);
+
+
+//通过反射更新结果，将对象名为columnName的属性更新值为columnValue
+//Order为需要赋值的对象
+Field field=Order.class.getDeclaredField(columnName);
+//反射调用优化，取消访问检查
+field.setAccessible(true);
+field.set(order,columnValue);
+
+
+```
+
+
+
+
+
+## 文件File
+
+
+
+
+
 ### 反射
 
 ```java
@@ -408,9 +460,6 @@ SXSSFWorkbook可以根据行数将内存中的数据持久化写到文件中。
     @RequestMapping(value = "/excelall", method = RequestMethod.GET)
     @ResponseBody
     public void downloadExcel(HttpServletResponse response) throws IOException {
-		//从token中获取当前登录用户的用户名
-        String token= TokenUtil.getToken();
-        String username=TokenUtil.getTokenUsername(token);
 
         //创建SXSSFWorkbook 对象
         SXSSFWorkbook workbook = new SXSSFWorkbook(1000);
@@ -514,6 +563,262 @@ SXSSFWorkbook可以根据行数将内存中的数据持久化写到文件中。
         response.flushBuffer();
         workbook.write(response.getOutputStream());
     }
+```
+
+### 将excel文件导入到数据库中            springdata-FileManager
+
+```xml
+<!--连接数据库需要-->
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <version>8.0.23</version>
+</dependency>
+<!--解析excel文件需要-->
+<dependency>
+    <groupId>org.apache.poi</groupId>
+    <artifactId>poi-ooxml</artifactId>
+    <version>3.17</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.poi</groupId>
+    <artifactId>poi</artifactId>
+    <version>3.17</version>
+</dependency>
+<!--multiPat文件-->
+<dependency>
+    <groupId>commons-io</groupId>
+    <artifactId>commons-io</artifactId>
+    <version>2.6</version>
+</dependency>
+<!--druid数据库连接-->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.22</version>
+</dependency>
+
+```
+
+
+
+```java
+package com.example.springdata.controller;
+
+import com.alibaba.druid.pool.DruidDataSource;
+import com.alibaba.fastjson.JSONObject;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.sql.SQLException;
+import java.util.*;
+
+/*
+需添加依赖
+<dependency>
+    <groupId>commons-io</groupId>
+    <artifactId>commons-io</artifactId>
+    <version>2.6</version>
+</dependency>
+
+ */
+
+/**
+ * 上传文件，并给出下载链接
+ */
+@Controller
+public class UploadFile {
+
+    //文件存储在根目录下的files目录下
+    private static String baseDir = "files/";
+
+    /**
+     * 文件上传
+     * @param inputFile
+     * @param
+     * @param httpServletRequest
+     * @return
+     */
+    @PostMapping("/upload")
+    @ResponseBody
+    public JSONObject uploadcert(@RequestParam("file") MultipartFile inputFile, HttpServletRequest httpServletRequest) {
+        //文件的存储目录--
+        String destPath="E:\\personLearning\\javaweb\\project\\springdata\\temp\\";
+        JSONObject jsonObject = new JSONObject();
+        //生成唯一的UUID与源文件拼接生成的新文件名
+        String name = UUID.randomUUID().toString() + "-" + inputFile.getOriginalFilename();
+
+        try {
+            //方法一
+            //传入目标存储文件，这里的存储路径是相对于根目录下
+            FileUtils.copyToFile(inputFile.getInputStream(), new File(baseDir + name));
+            //方法二
+            //此方法在给定了目标存储文件的绝对路径的情况下使用，由于版本问题transferTo会添加一个temp临时路径，报错文件 不存在
+            //String fileName = inputFile.getOriginalFilename();
+            //构建目标文件
+            //File dest = new File(destPath + fileName);
+            //如果文件夹不在则创建文件夹
+            //if (!dest.getParentFile().exists()) {
+            //    dest.getParentFile().mkdirs();
+            //}
+            //inputFile.transferTo(dest);
+            //======================================================================================
+        } catch (IOException e) {
+            e.printStackTrace();
+            return getJson("上传失败","202");
+        }
+        // 生成下载链接
+        String url=httpServletRequest.getScheme()+"://"+httpServletRequest.getServerName()+":"+httpServletRequest.getServerPort()+"/";
+
+        name=url.substring(0, url.indexOf("/",9)+1)+"download/"+name;
+        System.out.println(name);
+
+        if (inputFile.isEmpty()) {
+            jsonObject.put("Msg", "上传失败");
+            jsonObject.put("code", 202);
+            jsonObject.put("data", "");
+            jsonObject.put("total","");
+            return jsonObject;
+        }
+        jsonObject.put("Msg", "上传成功");
+        jsonObject.put("code", 200);
+        jsonObject.put("data", "");
+        jsonObject.put("total","");
+        return jsonObject;
+    }
+
+    /**
+     * 下载上传的文件
+     * @param response
+     * @param name 传入需要下载的文件名
+     * @throws IOException
+     */
+    @GetMapping("/download/{name}")
+    public void download(HttpServletResponse response, @PathVariable String name) throws IOException {
+        File file = new File(baseDir + name);
+        IOUtils.copy(FileUtils.openInputStream(file), response.getOutputStream());
+    }
+
+    /**
+     * 将excel上传到sql中
+     * @param multipartFile
+     * @return
+     * @throws IOException
+     * @throws SQLException
+     */
+    @PostMapping("/todatabase")
+    @ResponseBody
+    public JSONObject toDataBase(@RequestParam MultipartFile multipartFile) throws IOException, SQLException {
+        //连接数据库
+        DruidDataSource dataSource=new DruidDataSource();
+        dataSource.setUrl("jdbc:mysql://localhost:3306/test?useSSL=false&allowPublicKeyRetrieval=true&&serverTimezone = GMT");
+        dataSource.setUsername("root");;
+        dataSource.setPassword("qwe");
+        dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+
+        JdbcTemplate jdbcTemplate=new JdbcTemplate(dataSource);
+        String sql="insert into `temp`(name,password,age) values(?,?,?)";
+
+        Workbook workbook=null;
+        String fileName=multipartFile.getOriginalFilename();
+        InputStream inputStream=new ByteArrayInputStream(multipartFile.getBytes());
+
+        if(fileName==null || fileName.lastIndexOf(".")==-1){
+            return getJson("文件名不符合要求","404");
+        }
+
+        if(".xlsx".equals(fileName.substring(fileName.lastIndexOf('.')))){
+            workbook=new XSSFWorkbook(inputStream);
+        }else if(".xls".equals(fileName.substring(fileName.lastIndexOf('.')))){
+            workbook=new HSSFWorkbook(inputStream);
+        }else{
+            return getJson("文件名不符合要求","404");
+        }
+
+        if(workbook!=null){
+            //获取第一个sheet
+            Sheet sheet=workbook.getSheetAt(0);
+            //获取表中最大行数
+            int rowNum=sheet.getPhysicalNumberOfRows();
+            //获取第一行，默认为标题行
+            Row row=sheet.getRow(0);
+            //获取列数
+            int column=row.getPhysicalNumberOfCells();
+            //数据库中的字段名称
+            String[] header={"name","password","age"};
+            //判断excel的标题与数据库中的字段是否匹配，默认标题都是String类型
+            for(int i=0;i<column;i++){
+                if(!header[i].equals(row.getCell(i).getStringCellValue())){
+                    return getJson("上传失败:表单列名不匹配","205");
+                }
+            }
+            List list=new ArrayList<>();
+
+            for (int i = 1; i < rowNum; i++) {
+                row = sheet.getRow(i);
+                Object cellData=null;
+                if (row != null) {
+                    for (int j = 0; j < column; j++) {
+                        cellData = getCellFormatValue(row.getCell(j));
+                        list.add(cellData);
+                    }
+                    jdbcTemplate.update(sql,list.toArray());
+                }
+            }
+        }
+        return  getJson("上传成功","200");
+    }
+
+    //获取cell中不同类型的数据
+    public Object getCellFormatValue(Cell cell){
+        Object cellValue=null;
+        switch (cell.getCellTypeEnum()){
+            case NUMERIC:{
+                cellValue=cell.getNumericCellValue();
+                break;
+            }
+            case STRING:{
+                cellValue=cell.getStringCellValue();
+                break;
+            }
+            case FORMULA:{
+                //判断cell是否为日期格式
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    //转换为日期格式YYYY-mm-dd
+                    cellValue = cell.getDateCellValue();
+                } else {
+                    //数字
+                    cellValue = String.valueOf(cell.getNumericCellValue());
+                }
+                break;
+            }
+            default:
+                cellValue="";
+        }
+        return cellValue;
+    }
+
+    public JSONObject getJson(String msg,String code){
+        JSONObject jsonObject=new JSONObject();
+        jsonObject.put("msg",msg);
+        jsonObject.put("code",code);
+        return jsonObject;
+    }
+}
+
 ```
 
 
@@ -1150,7 +1455,7 @@ public class Person{
 Person person= new Person()
 ```
 
-**使用properties配置文件获取值**
+### 使用properties配置文件获取值
 
 1. 配置文件huang.properties
 
@@ -1169,6 +1474,40 @@ public class Person{
 ```
 
 获取一个值时，使用properties；多个使用yaml
+
+
+
+从properties中加载配置信息
+
+1. 配置properties
+
+```xml
+url=jdbc:mysql://localhost:3306/test?useSSL=false&allowPublicKeyRetrieval=true&&serverTimezone = GMT
+driverClass=com.mysql.cj.jdbc.Driver
+user=root
+password=qwe
+```
+
+2. java实现
+
+```java
+public void test() throws IOException, ClassNotFoundException, SQLException {
+    InputStream is=JDBC.class.getClassLoader().getResourceAsStream("jdbc.properties");
+    Properties pros=new Properties();
+    pros.load(is);
+    String user=pros.getProperty("user");
+    String password=pros.getProperty("password");
+    String url=pros.getProperty("url");
+    String driverClass=pros.getProperty("driverClass");
+
+    Class.forName(driverClass);
+
+    Connection conn=DriverManager.getConnection(url,user,password);
+    System.out.println(conn);
+}
+```
+
+
 
 ### yaml文件可放置的位置
 
@@ -1274,7 +1613,7 @@ public class IndexConfig implements WebMvcConfigurer {
 
 ### 404 500配置
 
-在resources目录下创建error文件夹，然后创建404.html、505.html即可
+在resources目录下的static下创建error文件夹，然后创建404.html、505.html即可
 
 ### 前端框架网站
 
@@ -1960,7 +2299,35 @@ public class ScheduledService {
    </dependency>
    ```
 
-   
+5. 报错如下，问题原因为将@SpringBootApplication注释了：
+
+```JAVA
+Caused by: org.springframework.context.ApplicationContextException: Unable to start ServletWebServerApplicationContext due to missing ServletWebServerFactory bean.
+```
+
+6. 检查配置文件中是否配置了datasource连接
+
+```tex
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Failed to configure a DataSource: 'url' attribute is not specified and no embedded datasource could be configured.
+
+Reason: Failed to determine a suitable driver class
+
+
+Action:
+
+Consider the following:
+	If you want an embedded database (H2, HSQL or Derby), please put it on the classpath.
+	If you have database settings to be loaded from a particular profile you may need to activate it (no profiles are currently active).
+
+```
+
+
 
 
 
