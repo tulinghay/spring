@@ -1,0 +1,1 @@
+直接运行CodeGenerator中的main方法，即可生成，详细配置见：https://mp.baomidou.com/config/generator-config.html
