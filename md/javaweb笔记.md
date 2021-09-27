@@ -37,7 +37,45 @@ Field field=Order.class.getDeclaredField(columnName);
 field.setAccessible(true);
 field.set(order,columnValue);
 
+//获取class对象的方法
+Class cls=Class.forName("com.huang.Dog");//编译阶段
+Class cls=Dog.class;//加载阶段
+Class cls=dog.getClass();//运行时阶段
+//通过获取类加载器来获取类
+ClassLoader classLoader=dog.getClass().getClassLoader();
+Class cls=classloader.loadClass("com.huang.Dog")
 
+//基本数据类型对应的包装类可以通过TYPE获取class
+Class<Integer> type=Integer.TYPE
+
+    
+//静态加载，编译时加载类，new创建对象，子类加载父类也加载，调用类中的静态成员
+//动态加载，运行时加载类，反射，运行时不调用代码，不会报错
+//创建对象
+Class cls=Class.forName("com.huang.Dog");
+Object object=cls.newInstance();
+//public构造方法创建对象
+Constructor contructor=cls.getConstructor(String.class);
+Object object=constructor.newInstance("huangda");
+//private构造方法构造对象
+Constructor contructor=cls.getDeclaredConstructor(int.class,String.class);
+//爆破
+contructor.setAccessible(true);
+Object object=constructor.newInstance(12,"huangda");
+
+```
+
+![image-20210915090741982](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210915090741982.png)
+
+![image-20210915091011545](C:\Users\18270\AppData\Roaming\Typora\typora-user-images\image-20210915091011545.png)
+
+
+
+### java版本迭代
+
+```java
+switch
+泛型
 ```
 
 
@@ -2150,15 +2188,101 @@ public class ScheduledService {
 }
 ```
 
+# MyBatisPlus
 
+​	1. pom.xml
 
+```xml
+<!--mybatisplus导入-->
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-boot-starter</artifactId>
+    <version>3.4.3.3</version>
+</dependency>
+```
 
+2. 配置数据库连接
 
+```properties
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.url=jdbc:mysql://localhost:3306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&&useSSL=false&&autoReconnect=true&failOverReadOnly=false 
+spring.datasource.username=root
+spring.datasource.password=qwe
+#配置日志
+mybatis-plus.configuration.log-impl=org.apache.ibatis.logging.stdout.StdOutImpl
+```
 
+3. 编写mapper，继承BaseMapper类，泛型为对应的Dao
 
+   ```java
+   package com.example.springdata.mapper;
+   
+   import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+   import com.example.springdata.dao.Temp;
+   import org.apache.ibatis.annotations.Mapper;
+   import org.apache.ibatis.annotations.Select;
+   
+   import java.util.List;
+   
+   
+   @Mapper
+   public interface TempMapper extends BaseMapper<Temp> {
+       
+   }
+   ```
 
+   
 
+4. 
 
+### 数据库字段自动填充数据
+
+https://mp.baomidou.com/guide/auto-fill-metainfo.html
+
+1. 创建字段赋予 @TableField 注解
+
+```java
+package com.example.springdata.dao;
+
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.TableField;
+import lombok.Data;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
+import java.util.Date;
+
+@Data
+@Entity
+public class Temp {
+    @Id
+    @Column(name = "id")
+    private Integer id;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "password")
+    private String password;
+
+    @Column(name = "age")
+    private Integer age;
+
+    @TableField(fill = FieldFill.INSERT)
+    private Date createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Date updateTime;
+}
+```
+
+2. 编写处理器
+
+```java
+
+```
 
 
 
