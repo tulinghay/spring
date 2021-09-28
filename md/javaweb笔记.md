@@ -1583,6 +1583,50 @@ yaml/yml实现多环境配置：https://www.cnblogs.com/tudou1179006580/p/148753
    片段表达式：~{...}
    ```
 
+### AOP
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aop</artifactId>
+</dependency>
+```
+
+给指定注释添加OperateLog方法，如果是整个包执行过程，则不需要@annotation
+
+```java
+package com.example.demo.config;
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
+import org.springframework.stereotype.Component;
+@Component
+@Aspect
+public class OperateLog {
+    //execution : * 返回任意结果
+    // com.example.demo.api.*.*(..)  包名com.example.demo.api下的所有类，所有方法，方法参数任意
+    // 且方法带有OperateLog注释
+    @Pointcut("execution (* com.example.demo.api.*.*(..)) && @annotation(com.example.demo.annotation.OperateLog))")
+    public void log(){
+    }
+    @Before("log()")
+    public void insertLogBefore(){
+        System.out.println("insertLogBefore");
+    }
+    @After("log()")
+    public void insertLogAfter(){
+        System.out.println("insertLogAfter");
+    }
+}
+```
+
+
+
+
+
+
+
 ### 消息国际化配置
 
 resources文件夹下创建i18n文件夹，在其下创建login.properties、login_zh_CN.properties、login_en_US.properties文件，通过可视化创建不同语言的属性后，在配置文件中添加文件位置`spring.messages.basename=i18n.login` ;最后在html页面中添加`th:text="#{login.tip}";
