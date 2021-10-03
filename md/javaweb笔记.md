@@ -1364,7 +1364,7 @@ public class UploadFile {
 ThreadLocal的使用
 ```
 
-## SpringBoot
+# SpringBoot
 
 springboot的自动装配配置都在spring-boot-autoconfigure-2.2.0.RELEASEjar包下
 
@@ -1621,11 +1621,222 @@ public class OperateLog {
 }
 ```
 
+### 拦截器Interceptor 过滤器Filter 监听器Listener
+
+**过滤器定义方法一**：使用@WebFilter注解实现，最简单，创建添加@WebFilter注解的AnnotationFilter类，然后在springbootApplication中**<font color=red>添加@SpringBootApplication注解</font>**
+
+```java
+package com.example.demo.config;
+
+import javax.servlet.*;
+import javax.servlet.annotation.WebFilter;
+import java.io.IOException;
+
+/**
+ * @Author William
+ * @Date 2021/9/28 10:37
+ * @Version 1.0
+ */
+@WebFilter(filterName = "annotation",urlPatterns = "/*")
+public class AnnotationFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        Filter.super.init(filterConfig);
+    }
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        System.out.println("annotationFilter success");
+        filterChain.doFilter(servletRequest,servletResponse);
+    }
+
+    @Override
+    public void destroy() {
+        Filter.super.destroy();
+    }
+}
+```
+
+定义拦截器
+
+```java
+package com.example.demo.interceptor;
+
+import com.alibaba.fastjson.JSON;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTDecodeException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.example.demo.annotation.PassToken;
+import com.example.demo.annotation.UserLoginToken;
+import com.example.demo.entity.ResultUtil;
+import com.example.demo.entity.User;
+import com.example.demo.service.UserService;
+import com.example.demo.util.TokenUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.ModelAndView;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Method;
+
+
+/**
+ * @author jinbin
+ * @date 2018-07-08 20:41
+ */
+public class AuthenticationInterceptor implements HandlerInterceptor {
+    @Autowired
+    UserService userService;
+    private static Logger log = LoggerFactory.getLogger(AuthenticationInterceptor.class);
+	//可以通过handler获取到方法注释，参数，方法名等信息
+    @Override
+    public boolean preHandle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object handler) throws Exception {
+        //如果不是映射到方法直接通过
+        if (!(object instanceof HandlerMethod)) {
+            return true;
+        }
+        HandlerMethod handlerMethod = (HandlerMethod) object;
+        Method method = handlerMethod.getMethod();
+
+        //如果映射是HandlerMethod，则可获取到方法信息
+        if(handler instanceof HandlerMethod){
+            HandlerMethod handlerMethod = (HandlerMethod) handler;
+            log.info("当前拦截的方法为：{}",handlerMethod.getMethod().getName());
+            log.info("当前拦截的方法参数长度为：{}",handlerMethod.getMethod().getParameters().length);
+            log.info("当前拦截的方法为：{}",handlerMethod.getBean().getClass().getName());
+            System.out.println("开始拦截---------");
+            String uri = request.getRequestURI();
+            System.out.println("拦截的uri："+uri);
+        }
+
+        //检查有没有需要用户权限的注解UserLoginToken
+        if (method.isAnnotationPresent(UserLoginToken.class)) {
+            String token = TokenUtil.getToken();
+            log.info("当前用户的token:" + token);
+			//获取UserLoginToken注解
+            UserLoginToken userLoginToken = method.getAnnotation(UserLoginToken.class);
+            if (userLoginToken.required()) {
+                return true;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object o, ModelAndView modelAndView) throws Exception {
+
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Object o, Exception e) throws Exception {
+
+    }
+}
+```
+
+过滤器定义方法二：
+
+```java
+package com.example.demo.interceptor;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
+import java.io.IOException;
+
+/**
+ * @Author William
+ * @Date 2021/9/28 9:46
+ * @Version 1.0
+ */
+public class GeneralFilter implements Filter {
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        System.out.println("GeneralFilter success");
+        HttpServletRequest httpServletRequest = (HttpServletRequest)servletRequest;
+        HttpServletResponseWrapper wrapper = new HttpServletResponseWrapper((HttpServletResponse) servletResponse);
+        if(httpServletRequest.getRequestURI().indexOf("/index") != -1
+        ) {
+            filterChain.doFilter(servletRequest, servletResponse);
+        }else {
+            wrapper.sendRedirect("/logintest");
+        }
+    }
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        Filter.super.init(filterConfig);
+    }
+
+    @Override
+    public void destroy() {
+        Filter.super.destroy();
+    }
+}
+```
 
 
 
+configuration配置Interceptor  Filter
 
+```java
+package com.example.demo.config;
 
+import com.example.demo.interceptor.AuthenticationInterceptor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.format.FormatterRegistry;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.validation.MessageCodesResolver;
+import org.springframework.validation.Validator;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.HandlerMethodReturnValueHandler;
+import org.springframework.web.servlet.HandlerExceptionResolver;
+import org.springframework.web.servlet.config.annotation.*;
+
+import java.util.List;
+
+/***
+ * 新建Token拦截器
+* @Title: InterceptorConfig.java 
+* @author MRC
+* @date 2019年5月27日 下午5:33:28 
+* @version V1.0
+ */
+@Configuration
+public class InterceptorConfig implements WebMvcConfigurer {
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(authenticationInterceptor())
+                .addPathPatterns("/**")
+				.excludePathPatterns("/download/")
+				//.excludePathPatterns("/logintest")
+				.excludePathPatterns("/login");    // 拦截所有请求，通过判断是否有 @LoginRequired 注解 决定是否需要登录
+    }
+    @Bean
+    public AuthenticationInterceptor authenticationInterceptor() {
+        return new AuthenticationInterceptor();
+    }
+	@Bean
+	FilterRegistrationBean filterRegist(){
+		FilterRegistrationBean filterRegistrationBean = new FilterRegistrationBean();
+		filterRegistrationBean.setFilter(new GeneralFilter());
+		filterRegistrationBean.addUrlPatterns("/*");
+		System.out.println("_______________________执行一次filterRegist");
+		return filterRegistrationBean;
+	}
+}
+```
 
 ### 消息国际化配置
 
